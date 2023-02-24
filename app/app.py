@@ -1,41 +1,79 @@
-import time
 import random
-import threading
-import requests
-import logging
 
-# endpoints = ("one", "two", "three", "four", "error")
-endpoints = ("recalculate")
+from flask import Flask
+import pika
+from prometheus_client import start_http_server, Counter
+from flask import json
+from werkzeug.exceptions import HTTPException
 
-HOST = "http://app:5000/"
+app = Flask(__name__)
+start_http_server(8000)
 
-total_errors=0
+QUEUE_NAME = 'my_queue'
+RABBITMQ_USER = 'username'
+RABBITMQ_PASSWORD = 'password'
+RABBITMQ_HOST = 'rabbitmq'
+RABBITMQ_PORT = 5672
 
-def accumulate_errors():
-    with open('errors','w+') as file:
-        global total_errors
-        total_errors+=1
-        return file.write(str(total_errors))
-
-
-
-def run():
-    while True:
-        try:
-            target = endpoints
-            r= requests.get(HOST + target, timeout=1)
-            r.raise_for_status()
-        except requests.exceptions.HTTPError as err:
-            logging.warning(f'total_errors {total_errors}')
-            accumulate_errors()
-            time.sleep(1)
+connection = pika.BlockingConnection(
+    pika.ConnectionParameters(
+        host=RABBITMQ_HOST,
+        port=RABBITMQ_PORT,
+        credentials=pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
+    )
+)
+channel = connection.channel()
+channel.queue_declare(queue=QUEUE_NAME)
 
 
-if __name__ == "__main__":
-    for _ in range(4):
-        thread = threading.Thread(target=run)
-        thread.daemon = True
-        thread.start()
+@app.errorhandler(HTTPException)
+def handle_exception(e):
+    """Return JSON instead of HTML for HTTP errors."""
+    # start with the correct headers and status code from the error
+    response = e.get_response()
+    # replace the body with JSON
+    response.data = json.dumps({
+        "code": e.code,
+        "name": e.name,
+        "description": e.description,
+    })
+    response.content_type = "application/json"
+    channel.basic_publish(exchange='', routing_key=QUEUE_NAME, body="Error")
+    return response
 
-    while True:
-        time.sleep(1)
+
+@app.route("/recalculate")
+def recalculate():
+    nterms = random.randint(-1000, 10000)
+    # first two terms
+    n1, n2 = 0, 1
+    count = 0
+
+    # check if the number of terms is valid
+    if nterms <= 0:
+        return ":C", 400
+    # if there is only one term, return n1
+    elif nterms == 1:
+        return n1
+    # probability of 15% to be an error
+    elif random.random() < 0.15:
+        return 'Service Unavailable', 503
+    # generate fibonacci sequence
+    while count < nterms:
+        nth = n1 + n2
+        # update values
+        n1 = n2
+        n2 = nth
+        count += 1
+    channel.basic_publish(exchange='', routing_key=QUEUE_NAME, body='Success')
+    return str(n1)
+
+
+@app.route('/publish')
+def publish():
+    channel.basic_publish(exchange='', routing_key=QUEUE_NAME, body='Message')
+    return 'Message published!'
+
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)

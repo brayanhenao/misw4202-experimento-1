@@ -2,7 +2,9 @@ version: '3'
 
 services:
   flask:
-    build: .
+    build:
+      context: app
+    stop_signal: SIGKILL
     ports:
       - "5000:5000"
     depends_on:
@@ -49,7 +51,10 @@ services:
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
     volumes:
-      - grafana_data:/var/lib/grafana
+      - ./grafana/config.ini:/etc/grafana/grafana.ini
+      - ./grafana/datasource.yaml:/etc/grafana/provisioning/datasources/default.yaml
+      - ./grafana/dashboard.yaml:/etc/grafana/provisioning/dashboards/default.yaml
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
     networks:
       - app-network
 
