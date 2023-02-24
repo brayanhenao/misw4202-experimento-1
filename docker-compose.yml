@@ -1,0 +1,60 @@
+version: '3'
+
+services:
+  flask:
+    build: .
+    ports:
+      - "5000:5000"
+    depends_on:
+      - rabbitmq
+    environment:
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: ${RABBITMQ_PORT}
+    networks:
+      - app-network
+
+  generator:
+    build:
+      context: generator
+    stop_signal: SIGKILL
+    depends_on:
+      - flask
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    networks:
+      - app-network
+
+  prometheus:
+    image: prom/prometheus:v2.30.2
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - app-network
+
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - app-network
+
+networks:
+  app-network:
+
+volumes:
+  grafana_data:
