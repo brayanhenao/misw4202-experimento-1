@@ -1,39 +1,34 @@
 import time
+import random
 import threading
 import requests
 import logging
-import pika
 
+# endpoints = ("one", "two", "three", "four", "error")
 endpoints = ("recalculate")
+
 HOST = "http://app:5000/"
-QUEUE_NAME = 'my_queue'
-RABBITMQ_USER = 'username'
-RABBITMQ_PASSWORD = 'password'
-RABBITMQ_HOST = 'rabbitmq'
-RABBITMQ_PORT = 5672
+
+total_errors = 0
 
 
-def init_rabbitmq():
-    connection = pika.BlockingConnection(
-        pika.ConnectionParameters(
-            host=RABBITMQ_HOST,
-            port=RABBITMQ_PORT,
-            credentials=pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASSWORD)
-        )
-    )
-    channel = connection.channel()
-    return channel
+def accumulate_errors():
+    with open('errors', 'w+') as file:
+        global total_errors
+        total_errors += 1
+        return file.write(str(total_errors))
 
 
 def run():
-    channel = init_rabbitmq()
     while True:
         try:
             target = endpoints
             r = requests.get(HOST + target, timeout=1)
             r.raise_for_status()
         except requests.exceptions.HTTPError as err:
-            channel.basic_publish(exchange='', routing_key=QUEUE_NAME, body=str(err))
+            logging.warning(f'total_errors {total_errors}')
+            accumulate_errors()
+            time.sleep(1)
 
 
 if __name__ == "__main__":

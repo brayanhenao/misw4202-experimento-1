@@ -6,20 +6,11 @@ scrape_configs:
   - job_name: 'rabbitmq'
     scrape_interval: 5s
     static_configs:
-      - targets: [ 'localhost:9090' ]
+      - targets: [ 'admin:admin@localhost:9090' ]
+        labels:
+          instance: 'rabbitmq'
     metrics_path: '/metrics/rabbitmq'
-    params:
-      vhost: '/'
-      username: ${RABBITMQ_USER}
-      password: ${RABBITMQ_PASSWORD}
     relabel_configs:
-      - source_labels: [ __address__ ]
-        target_label: __param_target
-      - source_labels: [ __param_target ]
-        target_label: instance
-      - target_label: __address__
-        replacement: 127.0.0.1:15672
-    metric_relabel_configs:
-      - source_labels: [ __name__ ]
-        regex: 'http_result'
+      - source_labels: [ '__name__' ]
+        regex: 'mi_metrica_(.*)'
         action: keep
