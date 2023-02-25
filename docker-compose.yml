@@ -1,4 +1,4 @@
-version: '3'
+version: '3.7'
 
 services:
   flask:
@@ -7,59 +7,40 @@ services:
     stop_signal: SIGKILL
     ports:
       - "5000:5000"
+    environment:
+      - RABBITMQ_HOST=rabbitmq
     depends_on:
       - rabbitmq
-    environment:
-      RABBITMQ_USER: ${RABBITMQ_USER}
-      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: ${RABBITMQ_PORT}
     networks:
-      - app-network
-
-  generator:
-    build:
-      context: generator
-    stop_signal: SIGKILL
-    depends_on:
-      - flask
+      - monitoring
 
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.9-management
     ports:
-      - "15672:15672"
       - "5672:5672"
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      - "15672:15672"
     networks:
-      - app-network
+      - monitoring
 
   prometheus:
-    image: prom/prometheus:v2.30.2
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    image: prom/prometheus
     ports:
       - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - rabbitmq
     networks:
-      - app-network
+      - monitoring
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana
     ports:
       - "3000:3000"
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
-    volumes:
-      - ./grafana/config.ini:/etc/grafana/grafana.ini
-      - ./grafana/datasource.yaml:/etc/grafana/provisioning/datasources/default.yaml
-      - ./grafana/dashboard.yaml:/etc/grafana/provisioning/dashboards/default.yaml
-      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
     networks:
-      - app-network
+      - monitoring
 
 networks:
-  app-network:
-
-volumes:
-  grafana_data:
+  monitoring:

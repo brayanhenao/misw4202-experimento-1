@@ -2,14 +2,12 @@ import random
 
 from flask import Flask
 import pika
-from prometheus_client import start_http_server, Counter
 from flask import json
 from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
-start_http_server(8000)
 
-QUEUE_NAME = 'my_queue'
+QUEUE_NAME = 'metricas'
 RABBITMQ_USER = 'username'
 RABBITMQ_PASSWORD = 'password'
 RABBITMQ_HOST = 'rabbitmq'
@@ -38,7 +36,8 @@ def handle_exception(e):
         "description": e.description,
     })
     response.content_type = "application/json"
-    channel.basic_publish(exchange='', routing_key=QUEUE_NAME, body="Error")
+    channel.basic_publish(exchange='', routing_key=QUEUE_NAME,
+                          body='http_result error')
     return response
 
 
@@ -65,14 +64,9 @@ def recalculate():
         n1 = n2
         n2 = nth
         count += 1
-    channel.basic_publish(exchange='', routing_key=QUEUE_NAME, body='Success')
+    channel.basic_publish(exchange='', routing_key=QUEUE_NAME,
+                          body='http_result ok')
     return str(n1)
-
-
-@app.route('/publish')
-def publish():
-    channel.basic_publish(exchange='', routing_key=QUEUE_NAME, body='Message')
-    return 'Message published!'
 
 
 if __name__ == '__main__':
